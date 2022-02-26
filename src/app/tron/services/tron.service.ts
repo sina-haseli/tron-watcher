@@ -30,9 +30,9 @@ export class TronService extends BusinessService<Tron> {
   }
 
   async getBalance(blockNumber: number) {
-    const da = await tronWeb.trx.getBlock(blockNumber);
-    if (da.transactions && da.transactions.length > 0) {
-      for (const element of da.transactions) {
+    const transactions = await this.getBlock(blockNumber);
+    if (transactions) {
+      for (const element of transactions) {
         const to = await tronWeb.address.fromHex(
           element.raw_data.contract[0].parameter.value.to_address,
         );
@@ -67,5 +67,16 @@ export class TronService extends BusinessService<Tron> {
     //
     //   console.log({ balance });
     // });
+  }
+
+  async getBlock(blockNumber: number) {
+    try {
+      const block = await tronWeb.trx.getBlock(blockNumber);
+      if (block.transactions && block.transactions.length > 0) {
+        return block.transactions;
+      }
+    } catch (e) {
+      console.log(e);
+    }
   }
 }
