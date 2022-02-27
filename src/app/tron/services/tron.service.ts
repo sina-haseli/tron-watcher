@@ -4,12 +4,14 @@ import { Tron } from '../entities/tron.entity';
 import { TronRepository } from '../repositories/tron.repository';
 import { RedisService } from '../../../redis/redis.service';
 import { CreateTronDto } from '../dto/create-tron.dto';
+import { Transaction } from '../../transaction/entities/transaction.entity';
+import { TransactionService } from '../../transaction/services/transaction.service';
+import { Cron, CronExpression, Interval, Timeout } from '@nestjs/schedule';
 const TronWeb = require('tronweb');
 
 const fullNode = 'https://api.nileex.io/';
 const solidityNode = 'https://api.nileex.io/';
 const eventServer = 'https://event.nileex.io/';
-const privateKey = 'my test account private key'; // Contract events http endpoint
 
 const tronWeb = new TronWeb(fullNode, solidityNode, eventServer);
 
@@ -18,25 +20,26 @@ export class TronService extends BusinessService<Tron> {
   constructor(
     private readonly tronRepository: TronRepository,
     private redisService: RedisService,
+    private transactionService: TransactionService,
   ) {
     super(tronRepository);
   }
-  async onModuleInit() {
-    const fullNode = 'https://api.nileex.io/';
-    const solidityNode = 'https://api.nileex.io/';
-    const eventServer = 'https://event.nileex.io/';
-    const privateKey = 'my test account private key'; // Contract events http endpoint
 
-    const tronWeb = new TronWeb(fullNode, solidityNode, eventServer);
-    const r = await this.getBalance(24076641);
-    console.log(r);
-  }
-
+  @Cron(CronExpression.EVERY_30_SECONDS)
   async setWalletsRedis() {
     const wallets = await this.findAll();
     if (wallets && wallets.length > 0) {
       await this.redisService.set('wallets', JSON.stringify(wallets));
     }
+  }
+
+  @Timeout(1000)
+  async run() {
+    let blockNumber = Number(await this.redisService.get('tron_blockNumber'));
+    if (!blockNumber) {
+      blockNumber = 0;
+    }
+    await this.getBalance(blockNumber);
   }
 
   async getBalance(blockNumber: number) {
@@ -46,16 +49,16 @@ export class TronService extends BusinessService<Tron> {
         const to = await tronWeb.address.fromHex(
           element.raw_data.contract[0].parameter.value.to_address,
         );
-        // const wallets = await this.findAll();
         const wallets = JSON.parse(await this.redisService.get('wallets'))
           ? JSON.parse(await this.redisService.get('wallets'))
           : (await this.findAll()) || [];
         for (const item of wallets) {
           if (to === item.walletId) {
             const balance = element.raw_data.contract[0].parameter.value.amount;
-            await this.updateById(item.id, {
-              amount: balance,
+            await this.transactionService.save({
               transactionId: element.txID,
+              amount: balance,
+              tron: await this.findOne(item.id),
               blockNumber: blockNumber,
             });
             console.log(to, item, element);
@@ -64,22 +67,9 @@ export class TronService extends BusinessService<Tron> {
       }
     }
     blockNumber++;
+    await this.redisService.set('tron_blockNumber', blockNumber.toString());
     console.log(blockNumber);
     await this.getBalance(blockNumber);
-    // You can also bind a `then` and `catch` method.
-    // tronWeb.trx
-    //   .getBalance(address)
-    //   .then((balance) => {
-    //     console.log({ balance });
-    //   })
-    //   .catch((err) => console.error(err));
-    //
-    // // If you'd like to use a similar API to Web3, provide a callback function.
-    // tronWeb.trx.getBalance(address, (err, balance) => {
-    //   if (err) return console.error(err);
-    //
-    //   console.log({ balance });
-    // });
   }
 
   async getBlock(blockNumber: number) {

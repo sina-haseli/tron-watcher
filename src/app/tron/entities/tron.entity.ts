@@ -1,5 +1,6 @@
 import { BusinessEntity } from '../../base/business.entity';
-import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { Transaction } from '../../transaction/entities/transaction.entity';
 
 @Entity()
 export class Tron extends BusinessEntity {
@@ -12,12 +13,8 @@ export class Tron extends BusinessEntity {
   @Column({ nullable: true, unique: true })
   walletId: string;
 
-  @Column({ nullable: true })
-  transactionId: string;
-
-  @Column({ nullable: true })
-  blockNumber: number;
-
-  @Column({ nullable: true })
-  amount: number;
+  @OneToMany(() => Transaction, (transaction) => transaction.tron, {
+    eager: false,
+  })
+  transactions: Transaction[];
 }
