@@ -1,3 +1,4 @@
+import './plugins/dotenv';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 

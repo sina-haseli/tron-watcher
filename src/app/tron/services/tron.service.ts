@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { CreateTronDto } from '../dto/create-tron.dto';
-import { UpdateTronDto } from '../dto/update-tron.dto';
 import { BusinessService } from '../../base/business.service';
 import { Tron } from '../entities/tron.entity';
 import { TronRepository } from '../repositories/tron.repository';
+import { RedisService } from '../../../redis/redis.service';
+import { CreateTronDto } from '../dto/create-tron.dto';
 const TronWeb = require('tronweb');
 
 const fullNode = 'https://api.nileex.io/';
@@ -15,7 +15,10 @@ const tronWeb = new TronWeb(fullNode, solidityNode, eventServer);
 
 @Injectable()
 export class TronService extends BusinessService<Tron> {
-  constructor(private readonly tronRepository: TronRepository) {
+  constructor(
+    private readonly tronRepository: TronRepository,
+    private redisService: RedisService,
+  ) {
     super(tronRepository);
   }
   async onModuleInit() {
@@ -29,6 +32,13 @@ export class TronService extends BusinessService<Tron> {
     console.log(r);
   }
 
+  async setWalletsRedis() {
+    const wallets = await this.findAll();
+    if (wallets && wallets.length > 0) {
+      await this.redisService.set('wallets', JSON.stringify(wallets));
+    }
+  }
+
   async getBalance(blockNumber: number) {
     const transactions = await this.getBlock(blockNumber);
     if (transactions) {
@@ -36,7 +46,10 @@ export class TronService extends BusinessService<Tron> {
         const to = await tronWeb.address.fromHex(
           element.raw_data.contract[0].parameter.value.to_address,
         );
-        const wallets = await this.findAll();
+        // const wallets = await this.findAll();
+        const wallets = JSON.parse(await this.redisService.get('wallets'))
+          ? JSON.parse(await this.redisService.get('wallets'))
+          : (await this.findAll()) || [];
         for (const item of wallets) {
           if (to === item.walletId) {
             const balance = element.raw_data.contract[0].parameter.value.amount;
@@ -78,5 +91,14 @@ export class TronService extends BusinessService<Tron> {
     } catch (e) {
       console.log(e);
     }
+  }
+
+  async createTron(tron: CreateTronDto) {
+    const { walletAddress, userId } = tron;
+    const result = await this.save({
+      walletId: walletAddress,
+      userId: userId,
+    });
+    return this.findOne(result.id);
   }
 }
