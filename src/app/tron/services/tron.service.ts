@@ -63,13 +63,23 @@ export class TronService extends BusinessService<Tron> {
     const currentBlock = await this.getCurrentBlock();
     console.log('CURRENT', currentBlock);
     if (blockNumber < currentBlock) {
-      await this.getBalance(blockNumber, currentBlock).finally(() => {
+      await this.loop(blockNumber, currentBlock).finally(() => {
         setTimeout(this.run.bind(this), 5000);
       });
     }
   }
 
-  async getBalance(blockNumber: number, currenBlockNumber: number) {
+  async loop(blockNumber: number, currentBlockNumber: number) {
+    const number = currentBlockNumber - blockNumber;
+    for (let i = 0; i < number; i++) {
+      await this.getBalance(blockNumber);
+      blockNumber++;
+      console.log(blockNumber);
+      await this.redisService.set('tron_blockNumber', blockNumber.toString());
+    }
+  }
+
+  async getBalance(blockNumber: number) {
     const transactions = await this.getBlock(blockNumber);
     const block = await this.getBlockFound(blockNumber);
     if (transactions && block) {
@@ -96,12 +106,6 @@ export class TronService extends BusinessService<Tron> {
           }
         }
       }
-    }
-    blockNumber++;
-    console.log(blockNumber);
-    await this.redisService.set('tron_blockNumber', blockNumber.toString());
-    if (blockNumber < currenBlockNumber) {
-      await this.getBalance(blockNumber, currenBlockNumber);
     }
   }
 
