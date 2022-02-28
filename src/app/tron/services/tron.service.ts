@@ -5,9 +5,10 @@ import { TronRepository } from '../repositories/tron.repository';
 import { RedisService } from '../../../redis/redis.service';
 import { CreateTronDto } from '../dto/create-tron.dto';
 import { TransactionService } from '../../transaction/services/transaction.service';
-import { Cron, CronExpression, Interval, Timeout } from "@nestjs/schedule";
-import { bind } from "lodash";
+import { Cron, CronExpression, Timeout } from '@nestjs/schedule';
 const TronWeb = require('tronweb');
+
+// const { THRESHOLD } = process.env;
 
 const fullNode = 'https://api.nileex.io/';
 const solidityNode = 'https://api.nileex.io/';
