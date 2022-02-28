@@ -20,4 +20,7 @@ export class Transaction extends BusinessEntity {
     eager: false,
   })
   tron: Tron;
+
+  @Column({ nullable: true })
+  isConfirmed: boolean;
 }

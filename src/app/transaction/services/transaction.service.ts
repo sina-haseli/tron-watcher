@@ -8,4 +8,8 @@ export class TransactionService extends BusinessService<Transaction> {
   constructor(private readonly transactionRepository: TransactionRepository) {
     super(transactionRepository);
   }
+
+  async unConfirmedTransactions() {
+    return this.transactionRepository.unConfirmedTransactions();
+  }
 }

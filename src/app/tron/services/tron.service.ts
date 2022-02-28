@@ -4,14 +4,16 @@ import { Tron } from '../entities/tron.entity';
 import { TronRepository } from '../repositories/tron.repository';
 import { RedisService } from '../../../redis/redis.service';
 import { CreateTronDto } from '../dto/create-tron.dto';
-import { Transaction } from '../../transaction/entities/transaction.entity';
 import { TransactionService } from '../../transaction/services/transaction.service';
-import { Cron, CronExpression, Interval, Timeout } from '@nestjs/schedule';
+import { Cron, CronExpression, Interval, Timeout } from "@nestjs/schedule";
+import { bind } from "lodash";
 const TronWeb = require('tronweb');
 
 const fullNode = 'https://api.nileex.io/';
 const solidityNode = 'https://api.nileex.io/';
 const eventServer = 'https://event.nileex.io/';
+// const fullNode = 'http://162.55.100.72:8090';
+// const solidityNode = 'http://162.55.100.72:8091';
 
 const tronWeb = new TronWeb(fullNode, solidityNode, eventServer);
 
@@ -33,43 +35,74 @@ export class TronService extends BusinessService<Tron> {
     }
   }
 
+  @Cron(CronExpression.EVERY_10_SECONDS)
+  async ConfirmedTransactions() {
+    const transactions =
+      await this.transactionService.unConfirmedTransactions();
+    const blockNumber = await tronWeb.trx.getCurrentBlock();
+    for (const item of transactions) {
+      if (item.blockNumber < blockNumber.block_header.raw_data.number - 6) {
+        await this.transactionService.updateById(item.id, {
+          isConfirmed: true,
+        });
+      }
+    }
+  }
+
+  async getCurrentBlock() {
+    const blockNumber = await tronWeb.trx.getCurrentBlock();
+    return blockNumber.block_header.raw_data.number;
+  }
+
   @Timeout(1000)
   async run() {
     let blockNumber = Number(await this.redisService.get('tron_blockNumber'));
     if (!blockNumber) {
       blockNumber = 0;
     }
-    await this.getBalance(blockNumber);
+    const currentBlock = await this.getCurrentBlock();
+    console.log('CURRENT', currentBlock);
+    if (blockNumber < currentBlock) {
+      await this.getBalance(blockNumber, currentBlock).finally(() => {
+        setTimeout(this.run.bind(this), 5000);
+      });
+    }
   }
 
-  async getBalance(blockNumber: number) {
+  async getBalance(blockNumber: number, currenBlockNumber: number) {
     const transactions = await this.getBlock(blockNumber);
-    if (transactions) {
+    const block = await this.getBlockFound(blockNumber);
+    if (transactions && block) {
       for (const element of transactions) {
-        const to = await tronWeb.address.fromHex(
-          element.raw_data.contract[0].parameter.value.to_address,
-        );
-        const wallets = JSON.parse(await this.redisService.get('wallets'))
-          ? JSON.parse(await this.redisService.get('wallets'))
-          : (await this.findAll()) || [];
-        for (const item of wallets) {
-          if (to === item.walletId) {
-            const balance = element.raw_data.contract[0].parameter.value.amount;
-            await this.transactionService.save({
-              transactionId: element.txID,
-              amount: balance,
-              tron: await this.findOne(item.id),
-              blockNumber: blockNumber,
-            });
-            console.log(to, item, element);
+        if (element.raw_data.contract[0].parameter.value.amount) {
+          const to = await tronWeb.address.fromHex(
+            element.raw_data.contract[0].parameter.value.to_address,
+          );
+          const wallets = JSON.parse(await this.redisService.get('wallets'))
+            ? JSON.parse(await this.redisService.get('wallets'))
+            : (await this.findAll()) || [];
+          for (const item of wallets) {
+            if (to === item.walletId) {
+              const balance =
+                element.raw_data.contract[0].parameter.value.amount;
+              await this.transactionService.save({
+                transactionId: element.txID,
+                amount: balance,
+                tron: await this.findOne(item.id),
+                blockNumber: blockNumber,
+                isConfirmed: false,
+              });
+            }
           }
         }
       }
     }
     blockNumber++;
-    await this.redisService.set('tron_blockNumber', blockNumber.toString());
     console.log(blockNumber);
-    await this.getBalance(blockNumber);
+    await this.redisService.set('tron_blockNumber', blockNumber.toString());
+    if (blockNumber < currenBlockNumber) {
+      await this.getBalance(blockNumber, currenBlockNumber);
+    }
   }
 
   async getBlock(blockNumber: number) {
@@ -77,6 +110,17 @@ export class TronService extends BusinessService<Tron> {
       const block = await tronWeb.trx.getBlock(blockNumber);
       if (block.transactions && block.transactions.length > 0) {
         return block.transactions;
+      }
+    } catch (e) {
+      console.log(e);
+    }
+  }
+
+  async getBlockFound(blockNumber: number) {
+    try {
+      const block = await tronWeb.trx.getBlock(blockNumber);
+      if (block) {
+        return true;
       }
     } catch (e) {
       console.log(e);
