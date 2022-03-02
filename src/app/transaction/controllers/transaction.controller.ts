@@ -11,8 +11,8 @@ export class TransactionController {
     return this.transactionService.findAll();
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.transactionService.findOne(+id);
+  @Get(':transactionid')
+  findOne(@Param('transactionid') transactionid: string) {
+    return this.transactionService.findByTransactionId(transactionid);
   }
 }

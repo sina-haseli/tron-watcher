@@ -9,4 +9,12 @@ export class TransactionRepository extends BusinessRepository<Transaction> {
       .andWhere('transaction.isConfirmed IS FALSE')
       .getMany();
   }
+
+  async findByTransactionId(transactionid: string) {
+    return this.createQueryBuilder('transaction')
+      .andWhere('transaction.transactionId = :transactionId', {
+        transactionId: transactionid,
+      })
+      .getOne();
+  }
 }

@@ -21,4 +21,17 @@ export class TronController {
   async getTronByWalletAddress(@Param('walletAddress') walletAddress: string) {
     return await this.tronService.getTronByWalletAddress(walletAddress);
   }
+
+  @Post('/blockNumber/:blockNumber')
+  async getTronByBlockNumber(@Param('blockNumber') blockNumber: number) {
+    await this.tronService.setBlockNumberRedis(blockNumber);
+    return {
+      message: 'success',
+    };
+  }
+
+  @Get('/lastBlockNumber')
+  async getLastBlockNumber() {
+    return await this.tronService.getLastBlockNumber();
+  }
 }

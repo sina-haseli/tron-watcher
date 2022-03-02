@@ -12,4 +12,8 @@ export class TransactionService extends BusinessService<Transaction> {
   async unConfirmedTransactions() {
     return this.transactionRepository.unConfirmedTransactions();
   }
+
+  async findByTransactionId(transactionid: string) {
+    return this.transactionRepository.findByTransactionId(transactionid);
+  }
 }
