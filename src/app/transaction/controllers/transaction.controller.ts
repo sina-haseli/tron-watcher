@@ -1,7 +1,8 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Get, Param } from '@nestjs/common';
 import { TransactionService } from '../services/transaction.service';
+import { BusinessController } from '../../common/decorator/business-controller.decorator';
 
-@Controller('transaction')
+@BusinessController('/transaction', 'Transaction')
 export class TransactionController {
   constructor(private readonly transactionService: TransactionService) {}
 

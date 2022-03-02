@@ -140,4 +140,12 @@ export class TronService extends BusinessService<Tron> {
     });
     return this.findOne(result.id);
   }
+
+  async getTron(userId: number) {
+    return this.tronRepository.getTronByUserId(userId);
+  }
+
+  async getTronByWalletAddress(walletAddress: string) {
+    return this.tronRepository.getTronByWalletAddress(walletAddress);
+  }
 }

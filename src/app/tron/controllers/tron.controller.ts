@@ -1,8 +1,9 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Get, Param, Post } from '@nestjs/common';
 import { TronService } from '../services/tron.service';
 import { CreateTronDto } from '../dto/create-tron.dto';
+import { BusinessController } from '../../common/decorator/business-controller.decorator';
 
-@Controller('tron')
+@BusinessController('/tron', 'Wallets')
 export class TronController {
   constructor(private readonly tronService: TronService) {}
 
@@ -11,8 +12,13 @@ export class TronController {
     return await this.tronService.createTron(tron);
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.tronService.findOne(+id);
+  @Get('/user/:userId')
+  async getTron(@Param('userId') userId: number) {
+    return await this.tronService.getTron(userId);
+  }
+
+  @Get('/wallet/:walletAddress')
+  async getTronByWalletAddress(@Param('walletAddress') walletAddress: string) {
+    return await this.tronService.getTronByWalletAddress(walletAddress);
   }
 }
