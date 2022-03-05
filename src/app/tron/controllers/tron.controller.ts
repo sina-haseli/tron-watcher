@@ -32,6 +32,17 @@ export class TronController {
 
   @Get('/lastBlockNumber')
   async getLastBlockNumber() {
-    return await this.tronService.getLastBlockNumber();
+    const result = await this.tronService.getLastBlockNumber();
+    return {
+      lastBlockNumberRedis: result,
+    };
+  }
+
+  @Get('/lastBlockNumberTron')
+  async getLastBlockNumberTron() {
+    const result = await this.tronService.getCurrentBlock();
+    return {
+      lastBlockNumberTron: result,
+    };
   }
 }
