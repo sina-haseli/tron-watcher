@@ -6,19 +6,19 @@ import { RedisService } from '../../../redis/redis.service';
 import { CreateTronDto } from '../dto/create-tron.dto';
 import { TransactionService } from '../../transaction/services/transaction.service';
 import { Cron, CronExpression, Timeout } from '@nestjs/schedule';
+import * as _ from 'lodash';
 const TronWeb = require('tronweb');
 
 const { FULL_NODE, SOLIDITY_NODE, EVENT_SERVER_NODE } = process.env;
 
 const fullNode = FULL_NODE;
 const solidityNode = SOLIDITY_NODE;
-const eventServer = EVENT_SERVER_NODE;
 // const fullNode = 'http://162.55.100.72:8090';
 // const solidityNode = 'http://162.55.100.72:8091';
 // const fullNode = 'http://162.55.100.72:8090';
 // const solidityNode = 'http://162.55.100.72:8091';
 
-const tronWeb = new TronWeb(fullNode, solidityNode, eventServer);
+const tronWeb = new TronWeb(fullNode, solidityNode);
 
 @Injectable()
 export class TronService extends BusinessService<Tron> {
@@ -92,32 +92,52 @@ export class TronService extends BusinessService<Tron> {
 
   async getBalance(blockNumber: number) {
     try {
+      const wallets = JSON.parse(await this.redisService.get('wallets'))
+        ? JSON.parse(await this.redisService.get('wallets'))
+        : (await this.findAll()) || [];
+
+      const walletsMap = new Map();
+      wallets.map((w) => walletsMap.set(w.walletId, w));
+
       const transactions = await this.getBlock(blockNumber);
-      const block = await this.getBlockFound(blockNumber);
-      if (transactions && block) {
-        for (const element of transactions) {
-          if (element.raw_data.contract[0].parameter.value.amount) {
-            const to = await tronWeb.address.fromHex(
-              element.raw_data.contract[0].parameter.value.to_address,
-            );
-            const wallets = JSON.parse(await this.redisService.get('wallets'))
-              ? JSON.parse(await this.redisService.get('wallets'))
-              : (await this.findAll()) || [];
-            for (const item of wallets) {
-              if (to === item.walletId) {
-                const balance =
-                  element.raw_data.contract[0].parameter.value.amount;
-                await this.transactionService.save({
-                  transactionId: element.txID,
-                  amount: balance,
-                  tron: await this.findOne(item.id),
-                  blockNumber: blockNumber,
-                  isConfirmed: false,
-                });
-              }
-            }
+      if (!transactions || transactions.length === 0) {
+        return;
+      }
+
+      const processableTxs = transactions
+        .filter((tx) => {
+          const contract = tx.raw_data.contract[0].parameter.value;
+          if (!contract.amount) {
+            return false;
           }
-        }
+          const to = tronWeb.address.fromHex(contract.to_address);
+          return contract.amount > 0 && walletsMap.has(to);
+        })
+        .map((tx) => {
+          const contract = tx.raw_data.contract[0].parameter.value;
+          return {
+            amount: contract.amount,
+            toAddress: contract.to_address,
+            transactionId: tx.txID,
+            blockNumber: blockNumber,
+            isConfirmed: false,
+          };
+        });
+
+      if (processableTxs.length == 0) {
+        return;
+      }
+
+      // TODO: publish message (JOB, QUEUE, TASK)
+      for (const item of processableTxs) {
+        console.log(item);
+        await this.transactionService.save({
+          transactionId: item.transactionId,
+          amount: item.amount,
+          tron: await this.getTronByWalletAddress(item.toAddress),
+          blockNumber: item.blockNumber,
+          isConfirmed: item.isConfirmed,
+        });
       }
     } catch (error) {
       console.log(error);
